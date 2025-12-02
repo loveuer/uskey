@@ -5,6 +5,9 @@
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var eventTapManager: EventTapManager?
+    private var config: Config?
+    private var keyMapper: KeyMapper?
+    private var permissionCheckTimer: Timer?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.setup()
@@ -13,19 +16,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.info("================================")
         Logger.info("App bundle path: \(Bundle.main.bundlePath)")
         
-        let config = loadConfig()
-        Logger.logLevel = config.log.level
-        
-        let keyMapper = KeyMapper(fromConfig: config)
-        keyMapper.printMappings()
+        config = loadConfig()
+        Logger.logLevel = config!.log.level
         
         Logger.info("Checking accessibility permissions...")
         if !checkAccessibilityPermissions() {
-            Logger.error("Accessibility permissions not granted!")
+            Logger.warning("Accessibility permissions not granted, waiting for user to grant permissions...")
             showAccessibilityAlert()
+            startPermissionMonitoring()
             return
         }
+        
         Logger.info("Accessibility permissions granted")
+        initializeApp()
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        permissionCheckTimer?.invalidate()
+        eventTapManager?.stop()
+        Logger.info("Application terminated")
+        Logger.cleanup()
+    }
+    
+    private func initializeApp() {
+        guard let config = config else {
+            Logger.error("Configuration not loaded")
+            return
+        }
+        
+        let keyMapper = KeyMapper(fromConfig: config)
+        self.keyMapper = keyMapper
+        keyMapper.printMappings()
         
         eventTapManager = EventTapManager(keyMapper: keyMapper)
         statusBarController = StatusBarController(eventTapManager: eventTapManager!, config: config)
@@ -42,10 +63,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.info("Application ready")
     }
     
-    func applicationWillTerminate(_ notification: Notification) {
-        eventTapManager?.stop()
-        Logger.info("Application terminated")
-        Logger.cleanup()
+    private func startPermissionMonitoring() {
+        Logger.info("Starting permission monitoring...")
+        
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                let trusted = AXIsProcessTrusted()
+                if trusted {
+                    Logger.info("Accessibility permissions granted! Initializing app...")
+                    self.permissionCheckTimer?.invalidate()
+                    self.permissionCheckTimer = nil
+                    self.initializeApp()
+                }
+            }
+        }
     }
     
     private func loadConfig() -> Config {
@@ -87,9 +120,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showAccessibilityAlert() {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permissions Required"
-        alert.informativeText = "uskey needs accessibility permissions to remap keyboard keys.\n\nPlease grant permissions in:\nSystem Preferences > Privacy & Security > Accessibility\n\nAfter granting permissions, restart the app."
-        alert.alertStyle = .warning
+        alert.informativeText = "uskey needs accessibility permissions to remap keyboard keys.\n\nPlease:\n1. Click 'Open System Preferences' in the dialog that appeared\n2. Enable uskey in the Accessibility list\n\nThe app will automatically start once permissions are granted."
+        alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+        
+        DispatchQueue.main.async {
+            alert.runModal()
+        }
     }
 }
