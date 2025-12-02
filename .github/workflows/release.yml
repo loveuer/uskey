@@ -1,0 +1,143 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build DMG for ${{ matrix.arch }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Build for ${{ matrix.arch }}
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          echo "Building for ${{ matrix.arch }}"
+          
+          # Build with specific architecture
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            swift build -c release --arch x86_64
+          else
+            swift build -c release --arch arm64
+          fi
+      
+      - name: Create app bundle and DMG
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          chmod +x build-app.sh build-dmg.sh create-icon.sh
+          ./build-app.sh
+          ./build-dmg.sh
+      
+      - name: Rename DMG with architecture
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          ARCH=${{ matrix.arch }}
+          mv .build/release/uskey-v${VERSION}.dmg .build/release/uskey-v${VERSION}-${ARCH}.dmg
+      
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uskey-v${{ steps.get_version.outputs.VERSION }}-${{ matrix.arch }}
+          path: .build/release/uskey-v${{ steps.get_version.outputs.VERSION }}-${{ matrix.arch }}.dmg
+          retention-days: 5
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+      
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find ./artifacts -name "*.dmg" -exec cp {} release-files/ \;
+          ls -lh release-files/
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## uskey v${{ steps.get_version.outputs.VERSION }}
+            
+            ### Downloads
+            
+            - **Apple Silicon (M1/M2/M3/M4)**: `uskey-v${{ steps.get_version.outputs.VERSION }}-arm64.dmg`
+            - **Intel**: `uskey-v${{ steps.get_version.outputs.VERSION }}-x86_64.dmg`
+            
+            ### Installation
+            
+            1. Download the appropriate DMG for your Mac
+            2. Open the DMG file
+            3. Drag `uskey.app` to Applications folder
+            4. Launch from Applications or Spotlight
+            5. Grant Accessibility permissions when prompted
+            
+            ### What's New
+            
+            See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+            
+            ### Features
+            
+            - ✅ Menu bar GUI with enable/disable toggle (Enabled ✅/❌)
+            - ✅ JSON-based configuration system
+            - ✅ File-based logging with debug support
+            - ✅ Custom key remapping via CGEventTap
+            - ✅ Auto-initialization after permission grant
+            - ✅ Custom app icon support
+            
+            ### Requirements
+            
+            - macOS 13.0 or later
+            
+            ### Documentation
+            
+            - [User Guide](https://github.com/${{ github.repository }}/blob/main/README.md)
+            - [Build Instructions](https://github.com/${{ github.repository }}/blob/main/BUILD.md)
+            - [Debugging Guide](https://github.com/${{ github.repository }}/blob/main/DEBUG.md)
+            
+            ---
+            🤖 Built with [Qoder](https://qoder.com)
+          files: |
+            release-files/*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

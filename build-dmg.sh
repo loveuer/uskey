@@ -2,11 +2,11 @@
 set -e
 
 APP_NAME="uskey"
-VERSION="1.0.0"
+VERSION="${VERSION:-1.0.0}"
 BUILD_DIR=".build/release"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 DMG_DIR=".build/dmg"
-DMG_NAME="$APP_NAME-$VERSION.dmg"
+DMG_NAME="$APP_NAME-v$VERSION.dmg"
 DMG_TEMP="$DMG_DIR/temp.dmg"
 DMG_FINAL="$BUILD_DIR/$DMG_NAME"
 
@@ -15,7 +15,7 @@ if [ ! -d "$APP_DIR" ]; then
     exit 1
 fi
 
-echo "Creating DMG for $APP_NAME..."
+echo "Creating DMG for $APP_NAME v$VERSION..."
 
 echo "Step 1: Preparing DMG directory..."
 rm -rf "$DMG_DIR"
