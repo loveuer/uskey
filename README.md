@@ -70,7 +70,9 @@ The configuration file is automatically created at `~/.config/uskey/config.json`
 
 ### Key Codes
 
-Common macOS key codes:
+For a complete list of macOS key codes, see [KEY_MAPPING.md](KEY_MAPPING.md).
+
+Common examples:
 - Backspace: 51
 - Backslash `\`: 42
 - Enter: 36
