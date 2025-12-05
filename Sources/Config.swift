@@ -54,10 +54,12 @@ struct MappingConfig: Codable {
 struct Config: Codable {
     let log: LogConfig
     let mapping: MappingConfig
+    let enabled: Bool
     
-    init(log: LogConfig = LogConfig(), mapping: MappingConfig = MappingConfig()) {
+    init(log: LogConfig = LogConfig(), mapping: MappingConfig = MappingConfig(), enabled: Bool = true) {
         self.log = log
         self.mapping = mapping
+        self.enabled = enabled
     }
     
     static func load(from path: String) throws -> Config {
@@ -67,13 +69,21 @@ struct Config: Codable {
         return try decoder.decode(Config.self, from: data)
     }
     
+    static func save(_ config: Config, to path: String) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(config)
+        try data.write(to: URL(fileURLWithPath: path))
+    }
+    
     static func createDefault(at path: String) throws {
         let defaultConfig = Config(
             log: LogConfig(level: .info),
             mapping: MappingConfig(mappings: [
                 "backslash2backspace": KeyMapping(from: 42, to: 51),
                 "backspace2backslash": KeyMapping(from: 51, to: 42)
-            ])
+            ]),
+            enabled: true
         )
         
         let encoder = JSONEncoder()

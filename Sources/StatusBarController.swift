@@ -6,6 +6,7 @@ class StatusBarController {
     private var statusItem: NSStatusItem?
     private var eventTapManager: EventTapManager
     private var config: Config
+    private var menu: NSMenu?
     
     init(eventTapManager: EventTapManager, config: Config) {
         self.eventTapManager = eventTapManager
@@ -17,8 +18,6 @@ class StatusBarController {
         
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "uskey")
-            button.action = #selector(statusBarButtonClicked)
-            button.target = self
         }
         
         updateMenu()
@@ -29,10 +28,10 @@ class StatusBarController {
     }
     
     private func updateMenu() {
-        let menu = NSMenu()
+        let newMenu = NSMenu()
         
-        menu.addItem(NSMenuItem(title: "uskey - Keyboard Remapper", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem.separator())
+        newMenu.addItem(NSMenuItem(title: "uskey - Keyboard Remapper", action: nil, keyEquivalent: ""))
+        newMenu.addItem(NSMenuItem.separator())
         
         let isEnabled = eventTapManager.isRunning()
         let toggleItem = NSMenuItem(
@@ -41,49 +40,56 @@ class StatusBarController {
             keyEquivalent: ""
         )
         toggleItem.target = self
-        menu.addItem(toggleItem)
+        newMenu.addItem(toggleItem)
         
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Current Mappings:", action: nil, keyEquivalent: ""))
+        newMenu.addItem(NSMenuItem.separator())
+        newMenu.addItem(NSMenuItem(title: "Current Mappings:", action: nil, keyEquivalent: ""))
         
         let mappings = config.mapping.getAllMappings()
         if mappings.isEmpty {
             let item = NSMenuItem(title: "  No mappings configured", action: nil, keyEquivalent: "")
             item.isEnabled = false
-            menu.addItem(item)
+            newMenu.addItem(item)
         } else {
             for (from, to) in mappings.sorted(by: { $0.0 < $1.0 }) {
                 let item = NSMenuItem(title: "  \(from) → \(to)", action: nil, keyEquivalent: "")
                 item.isEnabled = false
-                menu.addItem(item)
+                newMenu.addItem(item)
             }
         }
         
-        menu.addItem(NSMenuItem.separator())
+        newMenu.addItem(NSMenuItem.separator())
         
         let reloadItem = NSMenuItem(title: "Reload Configuration", action: #selector(reloadConfig), keyEquivalent: "r")
         reloadItem.target = self
-        menu.addItem(reloadItem)
+        newMenu.addItem(reloadItem)
         
-        menu.addItem(NSMenuItem.separator())
+        newMenu.addItem(NSMenuItem.separator())
         
-        let openLogsItem = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "l")
-        openLogsItem.target = self
-        menu.addItem(openLogsItem)
+        let openConfigItem = NSMenuItem(title: "Open Config Folder", action: #selector(openConfigFolder), keyEquivalent: "c")
+        openConfigItem.target = self
+        newMenu.addItem(openConfigItem)
         
         if let _ = Logger.getLogFilePath() {
             let viewLogItem = NSMenuItem(title: "View Current Log", action: #selector(viewCurrentLog), keyEquivalent: "")
             viewLogItem.target = self
-            menu.addItem(viewLogItem)
+            newMenu.addItem(viewLogItem)
         }
         
-        menu.addItem(NSMenuItem.separator())
+        newMenu.addItem(NSMenuItem.separator())
+        
+        let aboutItem = NSMenuItem(title: "⚠️ About Limitations", action: #selector(showLimitations), keyEquivalent: "")
+        aboutItem.target = self
+        newMenu.addItem(aboutItem)
+        
+        newMenu.addItem(NSMenuItem.separator())
         
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
-        menu.addItem(quitItem)
+        newMenu.addItem(quitItem)
         
-        self.statusItem?.menu = menu
+        self.menu = newMenu
+        self.statusItem?.menu = newMenu
     }
     
     @objc private func toggleMapping() {
@@ -91,16 +97,30 @@ class StatusBarController {
         if eventTapManager.isRunning() {
             eventTapManager.stop()
             Logger.info("Mapping disabled by user")
+            saveEnabledState(false)
         } else {
             Logger.info("Attempting to enable mapping...")
             if eventTapManager.start() {
                 Logger.info("Mapping enabled by user")
+                saveEnabledState(true)
             } else {
                 Logger.error("Failed to enable mapping - check accessibility permissions")
                 showAlert(title: "Error", message: "Failed to enable key mapping.\n\nPlease ensure:\n1. Accessibility permissions are granted\n2. The app is allowed in System Preferences > Privacy & Security > Accessibility\n\nCheck logs for details.")
             }
         }
         updateMenu()
+    }
+    
+    private func saveEnabledState(_ enabled: Bool) {
+        do {
+            let configPath = Config.getConfigPath()
+            let updatedConfig = Config(log: config.log, mapping: config.mapping, enabled: enabled)
+            try Config.save(updatedConfig, to: configPath)
+            config = updatedConfig
+            Logger.info("Saved enabled state: \(enabled)")
+        } catch {
+            Logger.error("Failed to save enabled state: \(error)")
+        }
     }
     
     @objc private func reloadConfig() {
@@ -118,10 +138,11 @@ class StatusBarController {
         }
     }
     
-    @objc private func openLogsFolder() {
-        let logsDir = Logger.getLogsDirectory()
-        Logger.info("Opening logs folder: \(logsDir)")
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: logsDir)
+    @objc private func openConfigFolder() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let configDir = homeDir.appendingPathComponent(".config/uskey").path
+        Logger.info("Opening config folder: \(configDir)")
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: configDir)
     }
     
     @objc private func viewCurrentLog() {
@@ -134,6 +155,26 @@ class StatusBarController {
     @objc private func quitApp() {
         Logger.info("Quitting application")
         NSApplication.shared.terminate(nil)
+    }
+    
+    @objc private func showLimitations() {
+        let alert = NSAlert()
+        alert.messageText = "Known Limitations"
+        alert.informativeText = """
+Due to macOS security restrictions, key remapping may not work in the following scenarios:
+
+• Password input fields (Secure Input Mode)
+• Lock screen / Login screen
+• System dialogs and some secure contexts
+• Some applications with enhanced security
+
+This is a macOS system limitation that affects all third-party keyboard remapping tools.
+
+For most regular input scenarios, remapping works as expected.
+"""
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
     
     private func showAlert(title: String, message: String) {

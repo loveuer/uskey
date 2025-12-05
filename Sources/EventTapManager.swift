@@ -38,14 +38,7 @@ class EventTapManager {
             if manager.keyMapper.hasMappingFor(keyCode: keyCode) {
                 if let mappedKey = manager.keyMapper.getMappedKey(for: keyCode) {
                     Logger.debug("Remapping: \(keyCode) -> \(mappedKey)")
-                    
-                    let newEvent = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(mappedKey), keyDown: type == .keyDown)
-                    if let newEvent = newEvent {
-                        newEvent.flags = event.flags
-                        newEvent.post(tap: .cghidEventTap)
-                    }
-                    
-                    return nil
+                    event.setIntegerValueField(.keyboardEventKeycode, value: mappedKey)
                 }
             }
             

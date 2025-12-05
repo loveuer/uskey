@@ -9,18 +9,11 @@ struct Logger {
         let logsDir = getLogsDirectory()
         try? FileManager.default.createDirectory(at: URL(fileURLWithPath: logsDir), withIntermediateDirectories: true)
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dateString = dateFormatter.string(from: Date())
+        logFilePath = "\(logsDir)/uskey.log"
         
-        logFilePath = "\(logsDir)/uskey-\(dateString).log"
-        
-        if !FileManager.default.fileExists(atPath: logFilePath!) {
-            FileManager.default.createFile(atPath: logFilePath!, contents: nil)
-        }
+        FileManager.default.createFile(atPath: logFilePath!, contents: nil)
         
         logFileHandle = FileHandle(forWritingAtPath: logFilePath!)
-        logFileHandle?.seekToEndOfFile()
         
         info("Logger initialized, log file: \(logFilePath!)")
     }

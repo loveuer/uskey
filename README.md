@@ -116,12 +116,14 @@ If you can't enable mapping after installation:
 
 ### Log Files Location
 
-Logs are stored at: `~/.config/uskey/logs/uskey-YYYY-MM-DD.log`
+Logs are stored at: `~/.config/uskey/logs/uskey.log`
+
+The log file is cleared on each application start.
 
 You can view logs by:
 - **Menu Bar**: Click uskey icon → "View Current Log"
 - **Finder**: Click uskey icon → "Open Logs Folder" (⌘L)
-- **Terminal**: `tail -f ~/.config/uskey/logs/uskey-$(date +%Y-%m-%d).log`
+- **Terminal**: `tail -f ~/.config/uskey/logs/uskey.log`
 
 ### Common Issues
 

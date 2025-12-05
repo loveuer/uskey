@@ -53,11 +53,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         statusBarController?.setupStatusBar()
         
-        Logger.info("Attempting to start event monitoring...")
-        if eventTapManager!.start() {
-            Logger.info("Event monitoring started successfully")
+        if config.enabled {
+            Logger.info("Auto-enabling event monitoring (enabled: true in config)...")
+            if eventTapManager!.start() {
+                Logger.info("Event monitoring started successfully")
+            } else {
+                Logger.error("Failed to start event monitoring - check if app has accessibility permissions")
+            }
         } else {
-            Logger.error("Failed to start event monitoring - check if app has accessibility permissions")
+            Logger.info("Event monitoring not auto-enabled (enabled: false in config)")
         }
         
         Logger.info("Application ready")
