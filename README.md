@@ -61,6 +61,48 @@ The configuration file is automatically created at `~/.config/uskey/config.json`
 }
 ```
 
+Each mapping has an optional `type` field:
+
+- `"keyboard"` (default, may be omitted) — rewrites the key to another keyboard key by keycode.
+- `"media"` — treats `to` as a media/system key (see [Media Keys](#media-keys)).
+
+### Media Keys
+
+Media and system keys (play/pause, next track, volume, etc.) are not regular
+keyboard events, so they cannot be remapped by keycode. Set `"type": "media"`
+and use an `NX_KEYTYPE_*` value for `to`:
+
+```json
+{
+  "mapping": {
+    "f19-to-play_or_pause": {
+      "from": 80,
+      "to": 16,
+      "type": "media"
+    },
+    "f20-to-next_track": {
+      "from": 90,
+      "to": 17,
+      "type": "media"
+    }
+  }
+}
+```
+
+Common media key values (`to`):
+
+| Value | Media key |
+|-------|-----------|
+| 16 | Play / Pause |
+| 17 | Next track |
+| 18 | Previous track |
+| 0 | Volume up |
+| 1 | Volume down |
+| 7 | Mute |
+
+The `from` value is still a regular keyboard keycode (e.g. F19 = 80, F20 = 90;
+see [KEY_MAPPING.md](KEY_MAPPING.md)).
+
 ### Log Levels
 
 - `debug` - Detailed debugging information including every key remap

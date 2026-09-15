@@ -24,9 +24,32 @@ struct LogConfig: Codable {
     }
 }
 
+enum MappingType: String, Codable {
+    case keyboard
+    case media
+}
+
 struct KeyMapping: Codable {
     let from: Int64
     let to: Int64
+    let type: MappingType
+
+    enum CodingKeys: String, CodingKey {
+        case from, to, type
+    }
+
+    init(from: Int64, to: Int64, type: MappingType = .keyboard) {
+        self.from = from
+        self.to = to
+        self.type = type
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        from = try container.decode(Int64.self, forKey: .from)
+        to = try container.decode(Int64.self, forKey: .to)
+        type = try container.decodeIfPresent(MappingType.self, forKey: .type) ?? .keyboard
+    }
 }
 
 struct MappingConfig: Codable {
@@ -46,8 +69,8 @@ struct MappingConfig: Codable {
         try container.encode(mappings)
     }
     
-    func getAllMappings() -> [(Int64, Int64)] {
-        return mappings.values.map { ($0.from, $0.to) }
+    func getAllMappings() -> [KeyMapping] {
+        return Array(mappings.values)
     }
 }
 

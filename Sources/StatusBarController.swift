@@ -52,8 +52,9 @@ class StatusBarController {
             item.isEnabled = false
             menu.addItem(item)
         } else {
-            for (from, to) in mappings.sorted(by: { $0.0 < $1.0 }) {
-                let item = NSMenuItem(title: "  \(from) → \(to)", action: nil, keyEquivalent: "")
+            for mapping in mappings.sorted(by: { $0.from < $1.from }) {
+                let suffix = mapping.type == .media ? " [media]" : ""
+                let item = NSMenuItem(title: "  \(mapping.from) → \(mapping.to)\(suffix)", action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 menu.addItem(item)
             }

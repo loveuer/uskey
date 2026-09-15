@@ -25,23 +25,29 @@ class EventTapManager {
             guard type == .keyDown || type == .keyUp else {
                 return Unmanaged.passRetained(event)
             }
-            
+
             guard let refcon = refcon else {
                 Logger.error("Event callback: refcon is nil")
                 return Unmanaged.passRetained(event)
             }
-            
+
             let manager = Unmanaged<EventTapManager>.fromOpaque(refcon).takeUnretainedValue()
-            
+
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            
-            if manager.keyMapper.hasMappingFor(keyCode: keyCode) {
-                if let mappedKey = manager.keyMapper.getMappedKey(for: keyCode) {
-                    Logger.debug("Remapping: \(keyCode) -> \(mappedKey)")
-                    event.setIntegerValueField(.keyboardEventKeycode, value: mappedKey)
+
+            if let mapping = manager.keyMapper.getMapping(for: keyCode) {
+                switch mapping.type {
+                case .keyboard:
+                    Logger.debug("Remapping: \(keyCode) -> \(mapping.to)")
+                    event.setIntegerValueField(.keyboardEventKeycode, value: mapping.to)
+                case .media:
+                    Logger.debug("Remapping to media key: \(keyCode) -> \(mapping.to)")
+                    manager.postMediaKey(keyType: Int32(mapping.to), isDown: type == .keyDown)
+                    // Swallow the original keyboard event.
+                    return nil
                 }
             }
-            
+
             return Unmanaged.passRetained(event)
         }
         
@@ -98,7 +104,31 @@ class EventTapManager {
     func isRunning() -> Bool {
         return isEnabled
     }
-    
+
+    /// Posts a system-defined media key event (play/pause, next, previous, etc.).
+    /// `keyType` is an `NX_KEYTYPE_*` constant, e.g. play/pause=16, next=17, previous=18.
+    func postMediaKey(keyType: Int32, isDown: Bool) {
+        let flags: Int = isDown ? 0xA00 : 0xB00
+        let data1 = (Int(keyType) << 16) | flags
+
+        guard let nsEvent = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(flags)),
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: data1,
+            data2: -1
+        ) else {
+            Logger.error("Failed to create media key event for keyType \(keyType)")
+            return
+        }
+
+        nsEvent.cgEvent?.post(tap: .cghidEventTap)
+    }
+
     func reload(config: Config) {
         let wasEnabled = isEnabled
         if wasEnabled {
